@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  text-wrap: pretty;
+}
+
+/* Evita que el examen se seleccione por accidente al arrastrar el mouse,
+   pero deja el texto legible y copiable para el docente. */
+.exam-surface {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:focus-visible {
+  outline-offset: 2px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

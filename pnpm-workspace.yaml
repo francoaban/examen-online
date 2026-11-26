@@ -1,0 +1,5 @@
+# Configuracion de pnpm 11 (settings globales del proyecto).
+# pnpm bloquea los scripts de instalacion por defecto; esbuild necesita el suyo
+# para validar su binario nativo (lo usan drizzle-kit y tsx).
+allowBuilds:
+  esbuild: true
