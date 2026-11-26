@@ -47,7 +47,5 @@ Desktop.ini
 # Ajustes locales de Claude Code (permisos personales).
 .claude/settings.local.json
 
-# --- Carpeta "~" creada por error ------------------------------------------
-# Una herramienta escribió en "~/AppData/..." relativo al proyecto en lugar
-# del directorio del usuario. No es parte del código.
+# --- Carpeta "~" ------------------------------------------
 ~/

@@ -3,7 +3,7 @@ import type { QuestionInput } from "./types";
 /**
  * Importación de preguntas desde CSV o Excel.
  *
- * Formato (ver docs/ejemplos/preguntas-ejemplo.csv). La primera fila son los
+ * Formato (ver public/plantillas/preguntas-ejemplo.csv). La primera fila son los
  * encabezados; el orden de las columnas no importa y se aceptan variantes
  * (mayúsculas, tildes, espacios, inglés):
  *

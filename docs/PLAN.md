@@ -3,11 +3,10 @@
 Documento vivo. Describe **qué** se construyó en el MVP v0.1, **por qué** se tomaron
 las decisiones y **qué** queda para las próximas versiones.
 
-- **Código:** `C:\Users\franc\dev\examen-ies10`
 - **Versión:** MVP v0.1 (noviembre 2026)
-- **Stack:** Next.js 16 · React 19 · Neon Managed Auth · Neon Postgres · Drizzle ORM · Tailwind 4
+- **Stack:** Next.js 16 · React 19 · Neon Auth · Neon Postgres · Drizzle ORM · Tailwind 4
 - **Gestor de paquetes:** pnpm 11 (`packageManager` en `package.json`, lockfile commiteado)
-- **Costo de infraestructura:** USD 0 (Vercel Hobby + Neon free)
+- **Costo de infraestructura:** USD 0 (Vercel Hobby + Neon free; el AI Gateway opcional requiere créditos)
 
 ---
 
@@ -25,18 +24,26 @@ Formulario de examen en línea con:
 | Preguntas a desarrollar con corrección manual | ✅ |
 | Panel de administración docente | ✅ |
 | Lista blanca de correos por examen | ✅ |
+| Examen sin límite de tiempo | ✅ vence al cierre del examen |
+| Cantidad y tiempo fuera de foco | ✅ calculado en el servidor |
+| Importar preguntas desde CSV o Excel | ✅ con vista previa y errores por fila |
+| Mostrar la nota al finalizar | ✅ opcional por examen |
+| Vista previa, monitor en vivo, duplicar y exportar CSV | ✅ |
 
-**Fuera del alcance de v0.1** (ver §9): banco de preguntas reutilizable, modo preview,
-exportación CSV, notificaciones por email, bloqueo real del navegador.
+**Fuera del alcance de v0.1** (ver §9): banco de preguntas reutilizable, notificaciones
+por email, bloqueo real del navegador.
 
 ---
 
 ## 2. Decisiones y fundamentos
 
-### 2.1 "Una sola vez" se resuelve en la base, no en el navegador
+### 2.1 El límite de intentos se resuelve en la base, no en el navegador
 
-El intento se **consume al comenzar**, con un `INSERT` protegido por un índice único
-`(exam_id, user_id)`. Si ya existe, la base rechaza la operación.
+Cada intento se **consume al comenzar**, con un `INSERT` protegido por dos índices
+únicos parciales: el número de intento no se repite por alumno
+(`exam_id, user_id, attempt_number`) y no puede haber dos intentos abiertos a la vez
+(`exam_id, user_id` con `submitted_at IS NULL`). El tope (`max_attempts`, 1 a 20) se
+controla antes de insertar.
 
 Consecuencias (todas deseadas):
 
@@ -47,7 +54,8 @@ Consecuencias (todas deseadas):
 
 ### 2.2 El reloj no se pausa
 
-Al iniciar se fija `deadline_at = min(inicio + duración, cierre global)`. No hay
+Al iniciar se fija `deadline_at = min(inicio + duración, cierre global)`; si el examen
+no tiene límite de tiempo, `deadline_at` es el cierre global. No hay
 `setTimeout` de larga duración (imposible en serverless). La expiración es
 **perezosa**: se evalúa en cada escritura y al abrir la página de resultados.
 
@@ -65,9 +73,8 @@ Al iniciar se fija `deadline_at = min(inicio + duración, cierre global)`. No ha
   por lo que la dirección debe estar verificada antes de acceder al panel.
 - `requireUser` / `requireTeacher` resuelven el usuario contra la base en cada
   request, manteniendo las autorizaciones de exámenes existentes.
-- Las contraseñas y sesiones de Auth.js no se migran. Cada usuario debe crear una
-  cuenta nueva en Neon Auth; las columnas locales antiguas se conservan para evitar
-  una migración destructiva.
+- Las columnas de autenticación de la versión anterior (`password_hash`,
+  `google_sub`) se conservan sin uso para evitar una migración destructiva.
 
 ### 2.4 Lista blanca obligatoria
 
@@ -181,7 +188,7 @@ components/ui.tsx                sistema de UI mínimo (sin dependencias extra)
 | `exams` | examen y política | `slug` único |
 | `questions` | preguntas y respuestas correctas | `exam_id` |
 | `exam_students` | lista blanca por examen | PK `(exam_id, email)` |
-| `attempts` | intento consumido | **UNIQUE `(exam_id, user_id)`** |
+| `attempts` | intento consumido, nota y métricas de foco | **UNIQUE `(exam_id, user_id, attempt_number)`** y un intento abierto por alumno |
 | `answers` | respuestas y puntaje manual | UNIQUE `(attempt_id, question_id)` |
 | `events` | auditoría de foco/cierre | índice `(attempt_id, at)` |
 
@@ -251,17 +258,18 @@ deben registrarse y verificar el email de la cuenta que usarán en la plataforma
 
 ## 9. Roadmap
 
+### Ya incorporado
+- Exportación CSV de resultados, modo vista previa, monitor en vivo y duplicar examen.
+- Intentos configurables, examen sin límite de tiempo y métricas de foco.
+- Importar preguntas desde CSV/Excel y mostrar la nota al finalizar.
+
 ### v0.2 — operación real
-- Exportación CSV de resultados y de eventos.
-- Modo **preview** del examen (intento marcado, excluido de resultados).
-- Monitor en vivo (polling cada 10 s) en la página del examen.
-- Duplicar examen.
+- Exportación CSV del historial de eventos.
 - Borrado/anonimización por antigüedad.
 
 ### v0.3 — calidad de examen
 - Banco de preguntas reutilizable.
 - Puntaje parcial y múltiple respuesta correcta.
-- Importar preguntas desde CSV/Excel.
 - Estadísticas por pregunta (índice de dificultad).
 
 ### v0.4 — endurecimiento (opcional)

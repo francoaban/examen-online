@@ -1,136 +1,175 @@
 # Aula Evalúa · MVP v0.1
 
-Plataforma de exámenes en línea: acceso con email y contraseña, lista blanca por examen,
-**cantidad de intentos configurable** (1 a 20), duración con cronómetro del lado del servidor
-**o sin límite de tiempo**, y registro auditable de la **cantidad y el tiempo** de las
-salidas de pestaña / pérdidas de foco.
+Plataforma de exámenes en línea con acceso por email y contraseña, lista de alumnos
+habilitados por examen, **cantidad de intentos configurable** (1 a 20), **tiempo límite
+opcional** controlado por el servidor y registro auditable de **cuántas veces y cuánto
+tiempo** el alumno salió de la pestaña del examen.
 
-Stack: **Next.js 16 · React 19 · Neon Managed Auth · Neon Postgres · Drizzle ORM · Tailwind 4**.
-Costo de infraestructura: **USD 0**.
+Stack: **Next.js 16 · React 19 · Neon Postgres · Neon Auth · Drizzle ORM · Tailwind 4**.
+La infraestructura base funciona en los planes gratuitos de Neon y Vercel.
 
-El detalle de decisiones y el roadmap están en [`docs/PLAN.md`](docs/PLAN.md).
-El panel docente permite exportar resultados CSV, monitorear intentos activos,
-probar exámenes en vista previa y duplicar su configuración.
+El detalle de decisiones y el roadmap está en [`docs/PLAN.md`](docs/PLAN.md).
+
+---
+
+## Funcionalidades
+
+**Para el docente**
+
+- Exámenes con fechas de apertura y cierre (hora Argentina), duración en minutos
+  **o sin límite de tiempo**, y de 1 a 20 intentos por alumno.
+- Preguntas de múltiple opción (corrección automática) y a desarrollar (con rúbrica,
+  corrección manual).
+- **Importación de preguntas desde CSV o Excel** (`.csv` / `.xlsx`), con vista previa y
+  errores por fila. Plantilla: [`public/plantillas/preguntas-ejemplo.csv`](public/plantillas/preguntas-ejemplo.csv).
+- Lista de alumnos habilitados por email.
+- **Monitor en vivo** de los intentos activos (se actualiza cada 10 segundos), con el
+  estado de foco de cada alumno.
+- Vista previa del examen, duplicado de exámenes y prórroga de tiempo por intento.
+- Exportación de resultados a CSV: intento, puntajes, salidas de foco y tiempo fuera.
+- Publicación de notas, u opción de **mostrar la nota al finalizar** el examen.
+
+**Para el alumno**
+
+- *Mis exámenes*: exámenes disponibles, intentos usados y mejor nota.
+- Autoguardado de respuestas; si se cierra la pestaña, el intento se retoma donde quedó.
+- Aviso de cada salida de foco durante el examen.
 
 ---
 
 ## Requisitos
 
-- Node.js 26 LTS (fijado en `.nvmrc` y `engines`).
-- **pnpm 11** (gestor del proyecto). Si no lo tenés:
+- **Node.js 26 LTS** (fijado en `.nvmrc` y en `engines`).
+- **pnpm 11**. Si no lo tenés:
   ```powershell
   corepack enable
   corepack prepare pnpm@11.10.0 --activate
   ```
   El campo `packageManager` de `package.json` fija la versión exacta.
-- Cuenta gratuita en [Neon](https://neon.tech) (Postgres).
-- Cuenta gratuita en [Vercel](https://vercel.com) para el deploy.
+- Cuenta en [Neon](https://neon.tech) (Postgres y Auth) y en [Vercel](https://vercel.com)
+  (deploy). Ambas tienen plan gratuito.
 
 ---
 
 ## 1. Configurar Neon
 
-1. Creá un proyecto en una región AWS e iniciá sesión con Neon CLI:
+Los servicios se declaran en [`neon.ts`](neon.ts) (Auth y AI Gateway). Con el proyecto
+creado en Neon, en una región de AWS:
 
-   ```powershell
-   npm install -g neon@latest
-   neon init -y --project-id <project-id> --branch production --services postgres,auth
-   neon deploy
-   ```
+```powershell
+npm install -g neon@latest
+neon init -y --project-id <project-id> --branch production --services postgres,auth
+neon deploy
+```
 
-   `neon deploy` habilita Managed Auth y agrega sus variables al archivo `.env`.
-   Exigí verificación por código para los nuevos registros:
+`neon deploy` habilita los servicios en la branch y escribe en `.env` las variables
+`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_AUTH_BASE_URL` y, si está declarado,
+las del AI Gateway.
 
-   ```powershell
-   neon neon-auth config email-password update --enabled --require-email-verification --auto-sign-in-after-verification --send-verification-email-on-sign-up --email-verification-method otp
-   ```
+Exigí verificación por código para los registros nuevos:
 
-2. En **Connection Details** copiá la cadena **Pooled connection** (la que tiene
-   `-pooler` en el host) como `DATABASE_URL`.
-3. Creá las tablas de la aplicación. Dos opciones:
+```powershell
+neon neon-auth config email-password update --enabled --require-email-verification --auto-sign-in-after-verification --send-verification-email-on-sign-up --email-verification-method otp
+```
 
-   - **Automática:** con `DATABASE_URL` ya cargada en `.env.local`, ejecutá
-     `pnpm db:push`.
-   - **Manual:** abrí el **SQL Editor** de Neon y pegá el contenido de
-     `lib/db/schema.sql`.
+Para desarrollo local, permití conexiones desde `localhost`:
+
+```powershell
+neon neon-auth domain allow-localhost enable
+```
 
 ---
 
 ## 2. Variables de entorno
 
-`neon deploy` agrega `NEON_AUTH_BASE_URL` a `.env`. Completá ese archivo con las
-variables siguientes. Si preferís `.env.local`, copiá allí también las variables
-de Neon: Next.js le da prioridad sobre `.env`.
+Copiá [`.env.example`](.env.example) a `.env` y completá lo que `neon deploy` no escribe.
+Next.js también lee `.env.local`, que tiene prioridad sobre `.env`.
 
 | Variable | De dónde sale |
 |---|---|
-| `DATABASE_URL` | Neon → cadena *pooled* |
-| `NEON_AUTH_BASE_URL` | `neon deploy` / Neon Console → Better Auth |
-| `NEON_AUTH_COOKIE_SECRET` | Generá uno con `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"` |
-| `TEACHER_EMAILS` | correos docentes, separados por coma |
-| `ALLOW_UNVERIFIED_TEST_EMAILS` | opcional; solo permite `@example.test` sin verificar en `pnpm dev` |
+| `DATABASE_URL` | `neon deploy` (cadena *pooled*, host con `-pooler`) |
+| `DATABASE_URL_UNPOOLED` | `neon deploy` (conexión directa, para migraciones) |
+| `NEON_AUTH_BASE_URL` | `neon deploy` |
+| `NEON_AUTH_COOKIE_SECRET` | generalo con `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"` |
+| `TEACHER_EMAILS` | correos con rol docente, separados por coma |
+| `ALLOW_UNVERIFIED_TEST_EMAILS` | opcional: permite cuentas `@example.test` sin verificar, solo en `pnpm dev` |
+| `NEON_AI_GATEWAY_BASE_URL` / `NEON_AI_GATEWAY_TOKEN` | opcionales: `neon deploy`, para [`lib/ai.ts`](lib/ai.ts) |
 
 ---
 
-## 3. Ejecutar y registrar la primera cuenta docente
+## 3. Base de datos
+
+En una base nueva, creá las tablas con una de estas opciones:
+
+- **Automática:** `pnpm db:push`.
+- **Manual:** pegá [`lib/db/schema.sql`](lib/db/schema.sql) en el **SQL Editor** de Neon.
+
+Si actualizás una base existente, aplicá en orden las migraciones de
+[`drizzle/`](drizzle/) desde el SQL Editor o con
+`psql "$DATABASE_URL" -f drizzle/<archivo>.sql`:
+
+| Migración | Qué agrega |
+|---|---|
+| `0001_intentos_y_foco.sql` | intentos configurables, examen sin límite de tiempo y métricas de foco |
+| `0002_nota_al_finalizar.sql` | opción de mostrar la nota al finalizar |
+
+Todas son idempotentes: se pueden volver a ejecutar sin riesgo.
+
+---
+
+## 4. Ejecutar y crear la primera cuenta docente
 
 ```powershell
 pnpm install
-pnpm db:push        # crea las tablas (si no usaste el SQL Editor)
 pnpm dev
 ```
 
-Agregá el correo docente a `TEACHER_EMAILS`, abrí la app, creá la cuenta con ese
-correo y verificá el código que se envía al buzón. Después del login se muestra la
-bienvenida con el rol confirmado. Los alumnos también se registran por su cuenta;
-para rendir un examen, el docente debe agregar su correo a la lista habilitada.
-Desde **Panel docente → Cuentas** se consultan los usuarios que ya iniciaron sesión.
+1. Agregá tu correo a `TEACHER_EMAILS`.
+2. Abrí `http://localhost:3000`, creá la cuenta con ese correo y verificá el código
+   que llega por email.
+3. Después de iniciar sesión, la bienvenida muestra el rol docente y el acceso al panel.
 
-Si actualizás una instalación que usaba Google, `pnpm db:push` adapta el esquema.
-Después de actualizar el código, aplicá las migraciones de `drizzle/` en orden
-(Neon Console → SQL Editor, o `psql "$DATABASE_URL" -f drizzle/0001_intentos_y_foco.sql`).
-Son idempotentes: se pueden volver a ejecutar sin riesgo.
-Las contraseñas y sesiones de Auth.js no se migran a Neon Auth. Cada persona debe
-crear una cuenta nueva y verificar su correo; los perfiles locales y sus roles se
-vinculan al email verificado al iniciar sesión.
+Los alumnos se registran por su cuenta. Para rendir un examen, su correo tiene que estar
+en la lista de habilitados de ese examen. En **Panel docente → Cuentas** se ven los
+usuarios que ya iniciaron sesión.
 
 ---
 
-## 4. Primer examen (recorrido completo)
+## 5. Primer examen (recorrido completo)
 
-1. **Panel docente → Nuevo examen.** Definí título, fechas (hora Argentina), duración.
-2. **Preguntas:** agregá múltiple opción (marcá la correcta con el radio verde) y/o
-   preguntas a desarrollar (con rúbrica).
-3. **Alumnos habilitados:** pegá la columna de emails desde Excel. Se validan y se
-   avisa si hay direcciones mal formadas.
-4. **Abrir examen.** Con estado *Abierto* y dentro de la ventana de fechas, los alumnos
-   de la lista lo ven en *Mis exámenes*.
-5. El alumno entra, lee las condiciones, comienza (queda consumido el intento) y rinde.
-6. **Intentos:** desde la ficha del examen ves estado, salidas de foco y nota. Entrá a
-   *Ver* para corregir las preguntas abiertas y revisar el historial de eventos.
-7. **Publicar notas** cuando terminaste de corregir.
-
----
-
-## 5. Deploy en Vercel
-
-1. Subí el proyecto a un repositorio de GitHub (**incluí `pnpm-lock.yaml`**; no lo
-   agregues a `.gitignore`).
-2. En Vercel: **Add New → Project** → importá el repo. Al detectar `pnpm-lock.yaml`,
-   Vercel instala con pnpm automáticamente; no hace falta tocar el *Install Command*.
-3. **Environment Variables**: cargá `DATABASE_URL`, `NEON_AUTH_BASE_URL`,
-   `NEON_AUTH_COOKIE_SECRET` y `TEACHER_EMAILS`.
-   `TEACHER_EMAILS` es obligatoria: sin ella, la aplicación no reconocerá cuentas docentes.
-4. Agregá el dominio de Vercel a los dominios permitidos de Neon Auth y desplegá.
-5. Cada docente debe registrarse con un email incluido en `TEACHER_EMAILS` y
-   verificarlo para acceder al panel.
-
-> Si Vercel eligiera npm por un `package-lock.json` viejo, borralo del repo: tener los
-> dos lockfiles hace que el gestor quede indefinido.
+1. **Panel docente → Nuevo examen.** Definí título, fechas, duración (o *Sin límite de
+   tiempo*), intentos permitidos y si la nota se muestra al finalizar.
+2. **Preguntas.** Cargalas a mano o importá un CSV/Excel. En múltiple opción, marcá la
+   correcta; en las preguntas a desarrollar, escribí la rúbrica. Tocá **Guardar preguntas**.
+3. **Alumnos habilitados.** Pegá la columna de emails desde Excel; se avisa si hay
+   direcciones mal formadas.
+4. **Abrir examen.** Con estado *Abierto* y dentro de las fechas, los alumnos de la lista
+   lo ven en *Mis exámenes*.
+5. El alumno lee las condiciones y comienza. El intento cuenta desde ese momento.
+6. **Intentos.** En la ficha del examen ves estado, salidas de foco y nota de cada
+   intento. Con *Ver* corregís las preguntas a desarrollar y revisás el historial.
+7. **Publicar notas** cuando termines de corregir. Recién ahí el alumno ve el detalle
+   con las respuestas correctas.
 
 ---
 
-## 6. Cómo funciona el control de intentos
+## 6. Deploy en Vercel
+
+1. Subí el proyecto a GitHub, **incluido `pnpm-lock.yaml`**: con ese archivo Vercel
+   instala con pnpm automáticamente.
+2. En Vercel: **Add New → Project** e importá el repositorio.
+3. En **Settings → Environment Variables** cargá `DATABASE_URL`, `NEON_AUTH_BASE_URL`,
+   `NEON_AUTH_COOKIE_SECRET` y `TEACHER_EMAILS` (y las del AI Gateway si las usás).
+   Sin `TEACHER_EMAILS` nadie tiene permisos docentes.
+4. Agregá el dominio de Vercel a los dominios de confianza de Neon Auth:
+   ```powershell
+   neon neon-auth domain add https://<tu-dominio>.vercel.app
+   ```
+5. Desplegá. Cada docente se registra con un correo de `TEACHER_EMAILS` y lo verifica.
+
+---
+
+## 7. Cómo funciona el control de intentos
 
 Cada examen define `max_attempts` (1 a 20). La base garantiza el límite con dos
 índices únicos parciales:
@@ -144,50 +183,35 @@ UNIQUE INDEX attempts_exam_user_open_uq ON attempts (exam_id, user_id)
 WHERE is_preview = false AND submitted_at IS NULL;
 ```
 
-- `POST /api/attempts/start` retoma el intento abierto si lo hay; si ya se usaron
-  todos, responde **409** con el id del último. Si no, inserta el intento
-  `n + 1` con `onConflictDoNothing()` (dos pestañas a la vez no crean dos intentos).
-- Las vistas previas docentes se marcan con `is_preview = true` y no consumen
-  intentos ni se incluyen en estadísticas o exportaciones.
-- Al alumno se le muestra la **mejor nota** entre sus intentos entregados; el docente
-  ve y exporta todos.
-- `deadline_at` se fija en ese mismo insert. Cerrar la pestaña no lo detiene.
+- `POST /api/attempts/start` retoma el intento abierto si lo hay. Si ya se usaron
+  todos, responde **409** con el id del último; si no, inserta el intento `n + 1` con
+  `onConflictDoNothing()`, así dos pestañas a la vez no crean dos intentos.
+- Las vistas previas docentes (`is_preview = true`) no consumen intentos ni aparecen en
+  estadísticas o exportaciones.
+- El alumno ve la **mejor nota** entre sus intentos entregados; el docente ve y exporta
+  todos.
+- `deadline_at` se fija al iniciar el intento; cerrar la pestaña no lo detiene.
 - **Sin límite de tiempo** (`duration_minutes = NULL`): `deadline_at` es el cierre del
-  examen. Si el docente mueve el cierre, los intentos abiertos lo acompañan.
-- Las respuestas se autoguardan cada 700 ms (y al ocultar la pestaña).
-- Al leer un intento vencido, el servidor lo cierra con lo que haya guardado.
-
-## 7. Herramientas docentes
-
-- **Monitor en vivo:** lista intentos de alumnos activos y actualiza cada 10 segundos.
-- **Exportar CSV:** descarga estado, puntajes y salidas de foco; los campos se
-  protegen contra fórmulas de hoja de cálculo.
-- **Vista previa:** habilita probar preguntas en borrador, fuera de fecha o cerradas,
-  sin afectar intentos ni estadísticas de alumnos.
-- **Duplicar examen:** copia configuración, preguntas y roster en un nuevo examen
-  en borrador; los intentos no se copian.
-
-## 8. Pruebas
-
-`pnpm test:unit` ejecuta pruebas sin conectarse a Neon. `pnpm smoke` sigue siendo
-la prueba de integración y requiere `DATABASE_URL`.
+  examen, y si el docente mueve el cierre, los intentos abiertos lo acompañan.
+- Las respuestas se autoguardan a los 700 ms de cada cambio y al ocultar la pestaña.
+- Si un intento venció, el servidor lo cierra con lo guardado la próxima vez que se lee.
 
 ---
 
-## 7. Detección de foco y cierre
+## 8. Detección de foco
 
-`app/examen/attempt/[attemptId]/ExamRunner.tsx` registra:
+[`ExamRunner.tsx`](app/examen/attempt/[attemptId]/ExamRunner.tsx) registra estos eventos:
 
 | Evento | Cuándo |
 |---|---|
-| `hidden` / `visible` | `visibilitychange` (incluye minimize y cambio de pestaña) |
-| `blur` / `focus` | pérdida/recuperación de foco de la ventana |
-| `pagehide` | cierre o navegación fuera (enviado con `sendBeacon`) |
-| `copy` / `paste` | portapapeles (solo registro) |
+| `hidden` / `visible` | `visibilitychange` (cambio de pestaña o ventana minimizada) |
+| `blur` / `focus` | la ventana pierde o recupera el foco |
+| `pagehide` | cierre o navegación fuera (se envía con `sendBeacon`) |
+| `copy` / `paste` | uso del portapapeles (solo se registra) |
 | `heartbeat` | cada 25 s mientras el examen está abierto |
 
-El servidor resume esos eventos en el intento (`lib/exam/focus.ts`), siempre con su
-propia hora:
+El servidor los resume en el intento ([`lib/exam/focus.ts`](lib/exam/focus.ts)), siempre
+con su propia hora:
 
 | Columna | Qué guarda |
 |---|---|
@@ -196,71 +220,87 @@ propia hora:
 | `focus_warning_count` | salidas que duraron al menos `warn_after_seconds` |
 | `focus_lost_since` | inicio de la salida en curso (`NULL` = está en el examen) |
 
-`hidden` + `blur` del mismo cambio de pestaña cuentan como una sola salida. Si el
-alumno cierra la pestaña, la salida se cierra al volver a entrar o al entregar.
-Las advertencias cuentan solo si la ausencia supera `warn_after_seconds`. **El examen
-nunca se anula automáticamente**: la decisión es del docente, con el historial a la
-vista.
+`hidden` y `blur` del mismo cambio de pestaña cuentan como una sola salida. Si el alumno
+cierra la pestaña, la salida termina cuando vuelve a entrar o al entregar.
+**El examen nunca se anula automáticamente**: la decisión es del docente, con el
+historial a la vista.
 
 ---
 
-## 8. Scripts
+## 9. Autenticación
 
-Se invocan con `pnpm <script>` (sin `run`).
+- [`lib/auth/server.ts`](lib/auth/server.ts) expone `auth` (handler de `/api/auth/*` y
+  proxy) y `sessionReader`, que lee la sesión desde Server Components sin intentar
+  escribir cookies durante el render.
+- [`proxy.ts`](proxy.ts) (el antiguo *middleware* de Next.js) valida y refresca la sesión
+  antes de cada página. `/` (login) y las rutas de Neon Auth son públicas; el resto
+  redirige a `/` si no hay sesión.
+- El rol docente se decide en el servidor en cada request según `TEACHER_EMAILS`.
+
+---
+
+## 10. Scripts
+
+Se ejecutan con `pnpm <script>`.
 
 | Comando | Qué hace |
 |---|---|
-| `pnpm dev` | desarrollo en `localhost:3000` |
-| `pnpm build` | build de producción |
+| `pnpm dev` | servidor de desarrollo en `localhost:3000` |
+| `pnpm build` / `pnpm start` | build y servidor de producción |
 | `pnpm typecheck` | chequeo de tipos |
-| `pnpm db:push` | sincroniza el esquema con la base |
+| `pnpm test:unit` | pruebas unitarias, sin conexión a la base |
+| `pnpm smoke` | prueba de integración contra la base real (crea y borra datos de prueba) |
+| `pnpm db:push` | sincroniza el esquema de Drizzle con la base |
+| `pnpm db:generate` | genera migraciones de Drizzle |
 | `pnpm db:studio` | Drizzle Studio (explorador de datos) |
-| `pnpm smoke` | 15 verificaciones de la lógica contra la base real (crea y borra datos de prueba) |
+| `pnpm ai:check [modelo]` | lista los modelos del AI Gateway y pide una respuesta de prueba |
 
 ### Gestor de paquetes
 
-El proyecto usa **pnpm 11** (fijado en `packageManager` dentro de `package.json`).
-
 | Archivo | Rol |
 |---|---|
-| `pnpm-lock.yaml` | versiones exactas. **Se commitea** y es lo que hace que Vercel use pnpm |
-| `pnpm-workspace.yaml` | `allowBuilds: esbuild` — habilita el script nativo que pnpm 11 bloquea por defecto |
-| `.npmrc` | no fallar por peers opcionales y no exigir versión exacta de Node |
+| `pnpm-lock.yaml` | versiones exactas; **se commitea** y hace que Vercel use pnpm |
+| `pnpm-workspace.yaml` | `allowBuilds: esbuild`: habilita el script nativo que pnpm 11 bloquea por defecto |
+| `.npmrc` | no fallar por dependencias *peer* opcionales ni exigir la versión exacta de Node |
 
 Si agregás una dependencia con binarios nativos (por ejemplo `sharp`), habilitá su build
 con `pnpm approve-builds`.
 
 ---
 
-## 9. Problemas frecuentes
+## 11. Problemas frecuentes
 
 | Síntoma | Causa / solución |
 |---|---|
-| `DATABASE_URL no está definida` | falta `.env.local` o no reiniciaste `pnpm dev` |
-| `DATABASE_URL` apunta a un host inesperado | una variable del entorno del proceso prevalece sobre `.env`; en PowerShell, quitá la heredada con `Remove-Item Env:DATABASE_URL` y reiniciá |
-| Neon Auth no inicia | verificá `NEON_AUTH_BASE_URL` y `NEON_AUTH_COOKIE_SECRET` en `.env.local` y en Vercel |
-| `ERR_PNPM_IGNORED_BUILDS` | los scripts nativos no están aprobados: `pnpm approve-builds --all` (ya queda fijado en `pnpm-workspace.yaml`) |
+| `DATABASE_URL no está definida` | falta `.env` o no reiniciaste `pnpm dev` |
+| `database "…" does not exist` | la base cambió de nombre: corré `neon env pull` (o `neon deploy`) para actualizar `.env` |
+| `DATABASE_URL` apunta a un host inesperado | una variable del entorno del sistema prevalece sobre `.env`; en PowerShell: `Remove-Item Env:DATABASE_URL` y reiniciá |
+| `column "…" does not exist` | falta aplicar una migración de `drizzle/` (ver sección 3) |
+| `Cookies can only be modified in a Server Action or Route Handler` | falta `proxy.ts` o una lectura de sesión no usa `sessionReader` |
+| Error en `/_global-error` al hacer `pnpm build` | hay `NODE_ENV=development` en las variables del sistema; quitala o usá `NODE_ENV=production pnpm build` |
+| Neon Auth responde 404 o `user_not_found` | Auth no está habilitado en la branch: `neon deploy`, y verificá `NEON_AUTH_BASE_URL` |
+| No puedo iniciar sesión en producción | falta el dominio de Vercel en Neon Auth (sección 6, paso 4) |
+| `ERR_PNPM_IGNORED_BUILDS` | aprobá los scripts nativos con `pnpm approve-builds --all` |
 | `ERR_PNPM_OUTDATED_LOCKFILE` | corré `pnpm install` y commiteá el `pnpm-lock.yaml` actualizado |
 | Vercel instala con npm | quedó un `package-lock.json` en el repo; borralo y volvé a desplegar |
-| No puedo iniciar sesión | verificá el email y la contraseña; si la olvidaste, usá **¿Olvidaste tu contraseña?** para recibir un código |
-| "Tu correo no está en la lista" | el email de la cuenta no coincide con el del roster (compará en `/mis-examenes`) |
-| El examen no aparece | estado `draft`, fuera de la ventana de fechas, o no está en el roster |
-| `prepared statement already exists` | estás usando el host sin `-pooler`; usá la cadena *pooled* |
-| Las notas no se ven | falta **Publicar notas** en el panel |
+| "Tu correo no está en la lista" | el email de la cuenta no coincide con el de la lista de habilitados |
+| El examen no aparece | está en borrador, fuera de fechas, o el alumno no está en la lista |
+| `prepared statement already exists` | usá la cadena *pooled* (host con `-pooler`) |
+| El alumno no ve su nota | publicá las notas, o activá *Mostrar la nota al finalizar* |
 | Cambié `TEACHER_EMAILS` y no toma efecto | reiniciá `pnpm dev` y volvé a iniciar sesión |
+| El AI Gateway responde 403 `paid_plan_required` | la cuenta de Neon no tiene créditos de AI Gateway (Billing) |
 
 ---
 
-## 10. Límites del MVP (a propósito)
+## 12. Límites del MVP
 
 - Sin pantalla completa obligatoria.
 - Sin bloqueo de copiar/pegar (solo se registra).
-- Sin exportación CSV (v0.2).
-- Sin modo preview del examen (v0.2).
-- La corrección de desarrollo es manual, pregunta por pregunta.
+- La corrección de las preguntas a desarrollar es manual, pregunta por pregunta.
 
-Vercel Hobby es **solo para uso no comercial**. Si el instituto factura el servicio,
-migrá a Cloudflare Pages + D1 (el acceso a datos ya está aislado en Drizzle).
+Vercel Hobby es **solo para uso no comercial**. Si el instituto cobra por el servicio,
+pasá a un plan pago de Vercel o a otro proveedor (el acceso a datos está aislado en
+Drizzle).
 
 ---
 

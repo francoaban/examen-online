@@ -4,7 +4,7 @@ import test from "node:test";
 import { parseCsv, rowsToQuestions } from "./question-import";
 
 test("imports the bundled example CSV without errors", () => {
-  const text = readFileSync("docs/ejemplos/preguntas-ejemplo.csv", "utf8");
+  const text = readFileSync("public/plantillas/preguntas-ejemplo.csv", "utf8");
   const result = rowsToQuestions(parseCsv(text));
 
   assert.deepEqual(result.errors, []);
