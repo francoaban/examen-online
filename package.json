@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit",
     "smoke": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/smoke.ts",
     "ai:check": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ai-check.ts",
-    "test:unit": "tsx --test scripts/smoke-unit.ts lib/api/attempt-schemas.test.ts lib/csv.test.ts lib/exam/validators.test.ts lib/exam/question-import.test.ts lib/logger.test.ts",
+    "test:unit": "tsx --test scripts/smoke-unit.ts lib/api/attempt-schemas.test.ts lib/csv.test.ts lib/exam/validators.test.ts lib/exam/question-import.test.ts lib/logger.test.ts scripts/admin-auth.test.ts lib/accounts/students.test.ts",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio"

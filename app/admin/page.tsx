@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { requireTeacher } from "@/lib/guards";
 import { attempts, examStudents, exams, questions } from "@/lib/db/schema";
 import { formatDateTime, formatExamDuration } from "@/lib/utils";
 import { Alert, Badge, Button, Card, CardBody, EmptyState } from "@/components/ui";
@@ -20,6 +21,7 @@ const statusLabel = {
 } as const;
 
 export default async function AdminHomePage() {
+  await requireTeacher();
   const examList = await db.select().from(exams).orderBy(desc(exams.createdAt));
 
   const [questionCounts, rosterCounts, attemptCounts] = await Promise.all([

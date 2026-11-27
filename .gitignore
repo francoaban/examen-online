@@ -49,3 +49,5 @@ Desktop.ini
 
 # --- Carpeta "~" ------------------------------------------
 ~/
+security/*
+security/audit/*

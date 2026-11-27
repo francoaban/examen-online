@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireTeacher } from "@/lib/guards";
 import { toArgLocalInput } from "@/lib/utils";
 import { Card, CardBody, CardHeader } from "@/components/ui";
 import { ExamForm } from "../ExamForm";
@@ -6,7 +7,9 @@ import type { ExamInput } from "../../types";
 
 export const dynamic = "force-dynamic";
 
-export default function NewExamPage() {
+export default async function NewExamPage() {
+  // El layout no alcanza como barrera: la página verifica el rol por su cuenta (SEC-01).
+  await requireTeacher();
   const now = new Date();
   const inAWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 

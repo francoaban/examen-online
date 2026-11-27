@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { authClient } from "@/lib/auth/client";
 import { Alert, Button, Field, Input } from "@/components/ui";
+import { changeOwnPassword } from "./actions";
 
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ mustChange = false }: { mustChange?: boolean }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -26,12 +26,9 @@ export function ChangePasswordForm() {
         return;
       }
 
-      const { error: changeError } = await authClient.changePassword({
-        currentPassword,
-        newPassword,
-      });
-      if (changeError) {
-        setError(changeError.message || "No se pudo cambiar la contraseña.");
+      const result = await changeOwnPassword(currentPassword, newPassword);
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
       window.location.assign("/bienvenida");
@@ -47,7 +44,10 @@ export function ChangePasswordForm() {
   return (
     <form className="space-y-4" onSubmit={submit}>
       {error ? <Alert tone="red">{error}</Alert> : null}
-      <Field label="Contraseña actual o temporal" htmlFor="current-password">
+      <Field
+        label={mustChange ? "Contraseña temporal" : "Contraseña actual"}
+        htmlFor="current-password"
+      >
         <Input
           id="current-password"
           type="password"

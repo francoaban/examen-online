@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { answers, attempts, events, exams, questions, users } from "@/lib/db/schema";
 import { finalizeIfExpired } from "@/lib/exam/attempts";
 import { focusLostMsNow } from "@/lib/exam/focus";
+import { requireTeacher } from "@/lib/guards";
 import { formatDateTime, formatDuration, formatScore, formatTime } from "@/lib/utils";
 import {
   Alert,
@@ -38,6 +39,7 @@ export default async function AttemptAdminPage({
 }: {
   params: Promise<{ attemptId: string }>;
 }) {
+  await requireTeacher();
   const { attemptId } = await params;
 
   const found = await db.query.attempts.findFirst({

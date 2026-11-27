@@ -129,9 +129,23 @@ pnpm dev
    que llega por email.
 3. Después de iniciar sesión, la bienvenida muestra el rol docente y el acceso al panel.
 
-Los alumnos se registran por su cuenta. Para rendir un examen, su correo tiene que estar
-en la lista de habilitados de ese examen. En **Panel docente → Cuentas** se ven los
-usuarios que ya iniciaron sesión.
+Los alumnos tienen dos formas de obtener una cuenta:
+
+- **Registro propio**, con verificación del correo por código.
+- **Alta por el docente** en **Panel docente → Cuentas → Habilitar alumnos**: se pega una
+  lista (`email` o `email, Nombre`, una por línea) y se crean las cuentas con el correo ya
+  verificado y una **contraseña temporal** (distinta para cada uno, o una común). Las
+  contraseñas se muestran una sola vez y se pueden descargar en CSV. En su primer ingreso
+  el alumno solo puede acceder a *Cambiar contraseña*: no ve ni rinde exámenes hasta
+  reemplazarla. «Nueva clave temporal» repite el proceso para un alumno que olvidó la suya
+  y cierra sus sesiones.
+
+  Esta función usa el plugin Admin de Neon Auth con la sesión del docente, por lo que su
+  cuenta necesita el rol `admin` en Neon Auth (Console → Auth → Users, o
+  `neon neon-auth user set-role <id> --roles admin`).
+
+En cualquier caso, para rendir un examen el correo tiene que estar en la lista de
+habilitados de ese examen.
 
 ---
 

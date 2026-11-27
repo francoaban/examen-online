@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { attempts, exams, users } from "@/lib/db/schema";
 import { focusLostMsNow } from "@/lib/exam/focus";
-import { getSessionUser } from "@/lib/guards";
+import { getActiveSessionUser } from "@/lib/guards";
 import { fail, json } from "@/lib/http";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ examId: string }> },
 ) {
-  const user = await getSessionUser();
+  const user = await getActiveSessionUser();
   if (!user) return fail("Sesión no válida.", 401);
   if (user.role !== "teacher") return fail("No autorizado.", 403);
 

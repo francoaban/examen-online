@@ -7,7 +7,7 @@ import {
   finalizeIfExpired,
   listStudentAttempts,
 } from "@/lib/exam/attempts";
-import { getSessionUser } from "@/lib/guards";
+import { getActiveSessionUser } from "@/lib/guards";
 import { fail, json, readJsonBody } from "@/lib/http";
 import { startAttemptSchema } from "@/lib/api/attempt-schemas";
 import { formatDateTime } from "@/lib/utils";
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
  * Las vistas previas docentes no consumen intentos.
  */
 export async function POST(req: Request) {
-  const user = await getSessionUser();
+  const user = await getActiveSessionUser();
   if (!user) return fail("Sesión no válida. Volvé a iniciar sesión.", 401);
 
   const parsedBody = startAttemptSchema.safeParse(await readJsonBody(req));
