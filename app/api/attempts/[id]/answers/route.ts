@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { answers, attempts, questions } from "@/lib/db/schema";
-import { getSessionUser } from "@/lib/guards";
+import { getActiveSessionUser } from "@/lib/guards";
 import { fail, json, readJsonBody } from "@/lib/http";
 import { finalizeAttempt, isPastDeadline } from "@/lib/exam/attempts";
 import { saveAnswerSchema } from "@/lib/api/attempt-schemas";
@@ -17,7 +17,7 @@ export async function PATCH(
 ) {
   const { id: attemptId } = await ctx.params;
 
-  const user = await getSessionUser();
+  const user = await getActiveSessionUser();
   if (!user) return fail("Sesión no válida.", 401);
 
   const attempt = await db.query.attempts.findFirst({

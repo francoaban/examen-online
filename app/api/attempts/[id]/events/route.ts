@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { attempts, events } from "@/lib/db/schema";
-import { getSessionUser } from "@/lib/guards";
+import { getActiveSessionUser } from "@/lib/guards";
 import { fail, json, readJsonBody } from "@/lib/http";
 import { recordEventsSchema } from "@/lib/api/attempt-schemas";
 import {
@@ -35,7 +35,7 @@ export async function POST(
 ) {
   const { id: attemptId } = await ctx.params;
 
-  const user = await getSessionUser();
+  const user = await getActiveSessionUser();
   if (!user) return fail("Sesión no válida.", 401);
 
   const attempt = await db.query.attempts.findFirst({

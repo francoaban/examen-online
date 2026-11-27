@@ -10,7 +10,12 @@ export type SessionUser = {
   email: string;
   name: string | null;
   role: string;
+  /** Cuenta creada por un docente con contraseña temporal que aún no se cambió. */
+  mustChangePassword: boolean;
 };
+
+/** Página a la que se envía a quien todavía tiene una contraseña temporal. */
+export const CHANGE_PASSWORD_PATH = "/cuenta/cambiar-clave";
 
 function canUseUnverifiedTestEmail(email: string): boolean {
   return (
@@ -71,8 +76,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   if (!row) throw new Error("No se pudo crear el perfil de la cuenta autenticada.");
 
+  // `mustChangePassword` lo activa el docente al crear la cuenta o al dar una
+  // contraseña temporal nueva, y solo lo apaga `changeOwnPassword`.
   const updates: Partial<typeof users.$inferInsert> = {};
-  if (row.mustChangePassword) updates.mustChangePassword = false;
   if (row.role !== expectedRole) updates.role = expectedRole;
   if (Object.keys(updates).length > 0) {
     await db.update(users).set(updates).where(eq(users.id, row.id));
@@ -83,12 +89,28 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     email: row.email,
     name: row.name,
     role: expectedRole,
+    mustChangePassword: row.mustChangePassword,
   };
 }
 
-export async function requireUser(): Promise<SessionUser> {
+/**
+ * Para route handlers: `null` si no hay sesión o si la cuenta todavía tiene la
+ * contraseña temporal (no puede rendir ni administrar hasta cambiarla).
+ */
+export async function getActiveSessionUser(): Promise<SessionUser | null> {
+  const user = await getSessionUser();
+  if (!user || user.mustChangePassword) return null;
+  return user;
+}
+
+export async function requireUser(
+  options: { allowPendingPasswordChange?: boolean } = {},
+): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/");
+  if (user.mustChangePassword && !options.allowPendingPasswordChange) {
+    redirect(CHANGE_PASSWORD_PATH);
+  }
   return user;
 }
 
@@ -102,6 +124,7 @@ export async function requireTeacher(): Promise<SessionUser> {
 export async function assertTeacher(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) throw new Error("No autenticado");
+  if (user.mustChangePassword) throw new Error("Cambiá la contraseña temporal antes de continuar.");
   if (user.role !== "teacher") throw new Error("No autorizado");
   return user;
 }

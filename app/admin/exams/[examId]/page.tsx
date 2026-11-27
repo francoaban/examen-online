@@ -4,6 +4,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { attempts, examStudents, exams, questions, users } from "@/lib/db/schema";
 import { focusLostMsNow } from "@/lib/exam/focus";
+import { requireTeacher } from "@/lib/guards";
 import {
   formatDateTime,
   formatDuration,
@@ -46,6 +47,9 @@ export default async function ExamAdminPage({
 }: {
   params: Promise<{ examId: string }>;
 }) {
+  // El layout no alcanza como barrera: esta página envía respuestas correctas y
+  // rúbricas al cliente, así que verifica el rol antes de tocar la base (SEC-01).
+  await requireTeacher();
   const { examId } = await params;
 
   const exam = await db.query.exams.findFirst({ where: eq(exams.id, examId) });
